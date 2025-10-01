@@ -13,6 +13,12 @@ from q2_quality_control.plugin_setup import (
     filter_parameter_descriptions,
 )
 from qiime2.plugin import Metadata
+from q2_annotate.busco.types import (
+    OrthologDNASequences,
+    OrthologProteinSequences,
+    OrthologDNASequencesDirFmt,
+    OrthologProteinSequencesDirFmt,
+)
 from q2_annotate.eggnog.types import (
     EggnogHmmerIdmapDirectoryFmt,
     EggnogHmmerIdmapFileFmt,
@@ -68,7 +74,16 @@ from qiime2.plugin import Plugin, Citations
 import q2_annotate._examples as ex
 import q2_annotate
 from q2_types.feature_data_mag import MAG
-from q2_types.genome_data import NOG, Orthologs, GenomeData, Loci, Genes, Proteins
+from q2_types.genome_data import (
+    NOG,
+    Orthologs,
+    GenomeData,
+    Loci,
+    Genes,
+    Proteins,
+    GenesDirectoryFormat,
+    ProteinsDirectoryFormat,
+)
 from q2_types.kaiju import KaijuDB
 from q2_types.kraken2 import Kraken2Reports, Kraken2Outputs, Kraken2DB, Kraken2DBReport
 from q2_types.kraken2 import BrackenDB
@@ -1190,6 +1205,44 @@ plugin.pipelines.register_function(
 )
 
 plugin.methods.register_function(
+    function=q2_annotate.busco._extract_orthologs_busco,
+    inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
+    parameters={**busco_params, **partition_params},
+    outputs={
+        "dna_ortholog_seqs": OrthologDNASequences,
+        "protein_ortholog_seqs": OrthologProteinSequences,
+    },
+    input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
+    parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
+    output_descriptions={
+        "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
+        "protein_ortholog_seqs": "A set of protein USCO sequences.",
+    },
+    name="Extract orthologs from the provided MAGs using BUSCO.",
+    description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
+    citations=[citations["manni_busco_2021"]],
+)
+
+plugin.pipelines.register_function(
+    function=q2_annotate.busco.extract_orthologs_busco,
+    inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
+    parameters={**busco_params, **partition_params},
+    outputs={
+        "dna_ortholog_seqs": OrthologDNASequences,
+        "protein_ortholog_seqs": OrthologProteinSequences,
+    },
+    input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
+    parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
+    output_descriptions={
+        "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
+        "protein_ortholog_seqs": "A set of protein USCO sequences.",
+    },
+    name="Extract orthologs from the provided MAGs using BUSCO.",
+    description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
+    citations=[citations["manni_busco_2021"]],
+)
+
+plugin.methods.register_function(
     function=q2_annotate.prodigal.predict_genes_prodigal,
     inputs={"seqs": FeatureData[MAG] | SampleData[MAGs] | SampleData[Contigs]},
     input_descriptions={
@@ -2107,3 +2160,11 @@ importlib.import_module("q2_annotate.busco.types._transformer")
 plugin.register_formats(EggnogHmmerIdmapFileFmt, EggnogHmmerIdmapDirectoryFmt)
 plugin.register_semantic_types(EggnogHmmerIdmap)
 plugin.register_semantic_type_to_format(EggnogHmmerIdmap, EggnogHmmerIdmapDirectoryFmt)
+
+plugin.register_semantic_type_to_format(
+    semantic_type=OrthologDNASequences, directory_format=GenesDirectoryFormat
+)
+
+plugin.register_semantic_type_to_format(
+    semantic_type=OrthologProteinSequences, directory_format=ProteinsDirectoryFormat
+)

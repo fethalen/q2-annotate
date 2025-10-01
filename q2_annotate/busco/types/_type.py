@@ -10,3 +10,6 @@ from q2_types.reference_db import ReferenceDB
 
 BUSCOResults = SemanticType("BUSCOResults")
 BUSCO = SemanticType("BUSCO", variant_of=ReferenceDB.field["type"])
+
+OrthologDNASequences = SemanticType("OrthologDNASequences")
+OrthologProteinSequences = SemanticType("OrthologProteinSequences")
