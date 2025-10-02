@@ -1,5 +1,5 @@
 import os
-import shutil
+import re
 import tempfile
 from enum import Enum
 from pathlib import Path
@@ -168,6 +168,42 @@ def _get_corresponding_files(
     return paths
 
 
+def _normalize_fasta_header(
+    header: str,
+    species_tag: str = None,
+    species_separator: str = "|",
+    replacement_char: str = "_",
+    allowed_chars: str = r"A-Za-z0-9_.\-",
+) -> str:
+    """
+    Normalize a FASTA header and prepend with a species tag.
+
+    Args:
+        header (str): FASTA header (with leading '>').
+        species_tag (str): Tag to prepend
+        species_separator (str): Separator between species and header (default: '|').
+        replacement_char (str): Char to replace disallowed chars and spaces.
+        allowed_chars (str): Regex class of allowed characters.
+
+    Returns:
+        str: Normalized header.
+    """
+    # remove leading '>'
+    token = header[1:].strip()
+
+    # remove species_separator from list of allowed characters
+    allowed_chars = allowed_chars.replace(species_separator, "")
+
+    # replace disallowed characters with replacement character
+    token = re.sub(f"[^{allowed_chars}]", replacement_char, token)
+
+    # prepend species tag if provided
+    if species_tag:
+        token = f">{species_tag}{species_separator}{token}"
+
+    return f">{token}\n"
+
+
 @overload
 def _append_uscos(
     usco_dir: GenesDirectoryFormat,
@@ -194,6 +230,8 @@ def _append_uscos(
     seq_type: SequenceType = SequenceType.NUCLEOTIDE,
     species_tag: str | None = None,
     species_separator: str = "|",
+    replacement_char: str = "_",
+    allowed_chars: str = r"A-Za-z0-9_.\-",
 ) -> Union[GenesDirectoryFormat, ProteinsDirectoryFormat]:
     """Append a collection of Universal Single-Copy Ortholog (USCO) sequence files to a
     QIIME 2 directory format artifact.
@@ -211,9 +249,11 @@ def _append_uscos(
         usco_paths (list[Path]): Paths to FASTA files containing USCO sequences.
         seq_type (SequenceType, optional): The type of sequences contained in
             `usco_paths`. Defaults to `SequenceType.NUCLEOTIDE`.
-        species_tag: Optional species identifier to prefix FASTA headers.
-        species_separator: Separator between species tag and sequence description.
+        species_tag (str): Optional species identifier to prefix FASTA headers.
+        species_separator (str): Separator between species tag and sequence description.
             Defaults to "|".
+        replacement_char (str): Char to replace disallowed chars and spaces.
+        allowed_chars (str): Regex class of allowed characters.
 
     Returns:
         GenesDirectoryFormat | ProteinsDirectoryFormat:
@@ -232,9 +272,13 @@ def _append_uscos(
         with open(source_fp, "r") as src, open(destination_fp, mode) as dst:
             for line in src:
                 if line.startswith(">"):
-                    if species_tag:
-                        header = line[1:].strip()
-                        line = f">{species_tag}{species_separator}{header}\n"
+                    line = _normalize_fasta_header(
+                        line,
+                        species_tag=species_tag,
+                        species_separator=species_separator,
+                        replacement_char=replacement_char,
+                        allowed_chars=allowed_chars,
+                    )
                 dst.write(line)
 
     return usco_dir
