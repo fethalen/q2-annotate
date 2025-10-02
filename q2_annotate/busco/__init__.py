@@ -9,7 +9,7 @@
 from .busco import _evaluate_busco, _visualize_busco, evaluate_busco
 from .database import fetch_busco_db
 from .extract_orthologs import _extract_orthologs_busco, extract_orthologs_busco
-from .partition import collate_busco_results
+from .partition import collate_busco_results, collate_busco_sequences
 
 __all__ = [
     "evaluate_busco",
@@ -17,6 +17,7 @@ __all__ = [
     "_visualize_busco",
     "fetch_busco_db",
     "collate_busco_results",
+    "collate_busco_sequences",
     "extract_orthologs_busco",
     "_extract_orthologs_busco",
 ]

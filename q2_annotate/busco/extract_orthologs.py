@@ -13,7 +13,6 @@ from q2_types.per_sample_sequences import MultiMAGSequencesDirFmt
 from q2_annotate._utils import _process_common_input_params
 from q2_annotate.busco.busco import _run_busco
 from q2_annotate.busco.types import BuscoDatabaseDirFmt
-from q2_annotate.busco.types._type import OrthologDNASequences, OrthologProteinSequences
 from q2_annotate.busco.utils import (
     _parse_busco_params,
     _validate_lineage_dataset_input,
@@ -241,38 +240,6 @@ def _append_uscos(
     return usco_dir
 
 
-def merge_usco_dirs(
-    usco_dirs: list[Union[GenesDirectoryFormat, ProteinsDirectoryFormat]],
-    seq_type: SequenceType,
-) -> Union[GenesDirectoryFormat, ProteinsDirectoryFormat]:
-    """Merge multiple USCO directories into a single directory.
-
-    Args:
-        usco_dirs: A list of USCO directory formats to merge.
-        seq_type (str): Name of the sequence type to extract. Must be `nucleotide` or
-            `protein`.
-
-    Returns:
-        A new USCO directory format containing all sequences from the input directories.
-    """
-    if seq_type.is_protein():
-        merged_dir = ProteinsDirectoryFormat()
-    else:
-        merged_dir = GenesDirectoryFormat()
-
-    for usco_dir in usco_dirs:
-        for fp in Path(str(usco_dir)).glob("*.fasta"):
-            dest = Path(str(merged_dir)) / fp.name
-            if dest.exists():
-                with open(fp) as src, open(dest, "a") as dst:
-                    for line in src:
-                        dst.write(line)
-            else:
-                shutil.copy(fp, dest)
-
-    return merged_dir
-
-
 def _extract_uscos(
     busco_results_dir: Path,
     lineage_dataset: str,
@@ -381,7 +348,7 @@ def _extract_orthologs_busco(
     miniprot: bool = False,
     additional_metrics: bool = False,
     num_partitions: int = None,
-) -> (GenesDirectoryFormat, ProteinsDirectoryFormat):
+) -> (GenesDirectoryFormat, ProteinsDirectoryFormat):  # type: ignore
     kwargs = {
         k: v
         for k, v in locals().items()
@@ -480,6 +447,7 @@ def extract_orthologs_busco(
     }
 
     _extract_orthologs_busco = ctx.get_action("annotate", "_extract_orthologs_busco")
+    collate_busco_sequences = ctx.get_action("annotate", "collate_busco_sequences")
 
     if issubclass(mags.format, MultiMAGSequencesDirFmt):
         partition_action = "partition_sample_data_mags"
@@ -489,12 +457,19 @@ def extract_orthologs_busco(
 
     (partitioned_mags,) = partition_mags(mags, num_partitions)
 
-    results = list(map(lambda mag: _extract_orthologs_busco(mag, **kwargs),
-                       partitioned_mags.values()))
+    results = list(
+        map(
+            lambda mag: _extract_orthologs_busco(mag, **kwargs),
+            partitioned_mags.values(),
+        )
+    )
 
     nucl_dirs, prot_dirs = zip(*results)
+    nucl_dirs = list(nucl_dirs)
+    prot_dirs = list(prot_dirs)
 
-    merged_nucl = merge_usco_dirs(list(nucl_dirs), SequenceType.NUCLEOTIDE)
-    merged_prot = merge_usco_dirs(list(prot_dirs), SequenceType.PROTEIN)
+    collated_nucl_dirs, collated_prot_dirs = collate_busco_sequences(
+        nucl_dirs, prot_dirs
+    )
 
-    return OrthologDNASequences(merged_nucl), OrthologProteinSequences(merged_prot)
+    return collated_nucl_dirs, collated_prot_dirs
