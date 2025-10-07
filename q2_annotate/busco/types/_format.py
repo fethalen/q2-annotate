@@ -181,13 +181,3 @@ class BuscoDatabaseDirFmt(model.DirectoryFormat):
 
     def _validate_(self, level):
         pass
-
-
-class OrthologDNASequencesDirFmt(model.DirectoryFormat):
-    def _validate_(self, level):
-        pass
-
-
-class OrthologProteinSequencesDirFmt(model.DirectoryFormat):
-    def _validate(self, level):
-        pass

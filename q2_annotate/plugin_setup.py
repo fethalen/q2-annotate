@@ -16,8 +16,6 @@ from qiime2.plugin import Metadata
 from q2_annotate.busco.types import (
     OrthologDNASequences,
     OrthologProteinSequences,
-    OrthologDNASequencesDirFmt,
-    OrthologProteinSequencesDirFmt,
 )
 from q2_annotate.eggnog.types import (
     EggnogHmmerIdmapDirectoryFmt,

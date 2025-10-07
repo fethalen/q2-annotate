@@ -16,8 +16,6 @@ from ._format import (
     BUSCOResultsFormat,
     BUSCOResultsDirectoryFormat,
     BuscoDatabaseDirFmt,
-    OrthologDNASequencesDirFmt,
-    OrthologProteinSequencesDirFmt,
 )
 
 
@@ -29,6 +27,4 @@ __all__ = [
     "BuscoDatabaseDirFmt",
     "OrthologDNASequences",
     "OrthologProteinSequences",
-    "OrthologDNASequencesDirFmt",
-    "OrthologProteinSequencesDirFmt",
 ]
