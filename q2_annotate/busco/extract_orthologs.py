@@ -5,10 +5,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Union, overload
 
+import numpy as np
 import pandas as pd
 from q2_types.feature_data_mag import MAGSequencesDirFmt
 from q2_types.genome_data import GenesDirectoryFormat, ProteinsDirectoryFormat
 from q2_types.per_sample_sequences import MultiMAGSequencesDirFmt
+import skbio
 
 from q2_annotate._utils import _process_common_input_params
 from q2_annotate.busco.busco import _run_busco
@@ -41,6 +43,12 @@ class DuplicateMode(str, Enum):
     LONGEST = "longest"
     BEST_SCORE = "best_score"
     SKIP = "skip"
+
+
+class CaseMode(str, Enum):
+    LOWER = "lower"
+    UPPER = "upper"
+    PRESERVE = "preserve"
 
 
 def _parse_full_table_file(tsv_path: Path) -> pd.DataFrame:
@@ -142,8 +150,8 @@ def _get_corresponding_files(
         full_table_df (pandas.DataFrame): The complete BUSCO results.
         busco_results_dir (str): Full path to the folder containing one analysis run,
             including the name of the folder given with the flag `-o`/`--out`
-        seq_type (str): Name of the sequence type to extract. Must be `nucleotide` or
-            `protein`
+        seq_type (SequenceType): Name of the sequence type to extract. Must be either
+            `nucleotide` or `protein`. Default: `SequenceType.NUCLEOTIDE`.
         nucl_ext (str): Extension used for nucleotide FASTA files, including the dot.
         prot_ext (str): Extension used for amino acid FASTA files, including the dot.
 
@@ -179,7 +187,7 @@ def _normalize_fasta_header(
     Normalize a FASTA header and prepend with a species tag.
 
     Args:
-        header (str): FASTA header (with leading '>').
+        header (str): FASTA header (without leading '>').
         species_tag (str): Tag to prepend
         species_separator (str): Separator between species and header (default: '|').
         replacement_char (str): Char to replace disallowed chars and spaces.
@@ -188,20 +196,17 @@ def _normalize_fasta_header(
     Returns:
         str: Normalized header.
     """
-    # remove leading '>'
-    token = header[1:].strip()
-
     # remove species_separator from list of allowed characters
     allowed_chars = allowed_chars.replace(species_separator, "")
 
     # replace disallowed characters with replacement character
-    token = re.sub(f"[^{allowed_chars}]", replacement_char, token)
+    token = re.sub(f"[^{allowed_chars}]", replacement_char, header)
 
     # prepend species tag if provided
     if species_tag:
-        token = f">{species_tag}{species_separator}{token}"
+        token = f"{species_tag}{species_separator}{token}"
 
-    return f">{token}\n"
+    return f"{token}\n"
 
 
 @overload
@@ -232,6 +237,8 @@ def _append_uscos(
     species_separator: str = "|",
     replacement_char: str = "_",
     allowed_chars: str = r"A-Za-z0-9_.\-",
+    wrap_column: int = 0,
+    case_mode: CaseMode = CaseMode.PRESERVE,
 ) -> Union[GenesDirectoryFormat, ProteinsDirectoryFormat]:
     """Append a collection of Universal Single-Copy Ortholog (USCO) sequence files to a
     QIIME 2 directory format artifact.
@@ -244,16 +251,23 @@ def _append_uscos(
 
         >{species_tag}{species_separator}{original_description}
 
+    Sequences are either wrapped at the provided wrap_column or, if the wrap_column is
+    set to 0, each sequence is written to a single line only.
+
     Args:
         usco_dir: Existing USCO directory.
         usco_paths (list[Path]): Paths to FASTA files containing USCO sequences.
-        seq_type (SequenceType, optional): The type of sequences contained in
+        seq_type (SequenceType): The type of sequences contained in
             `usco_paths`. Defaults to `SequenceType.NUCLEOTIDE`.
         species_tag (str): Optional species identifier to prefix FASTA headers.
         species_separator (str): Separator between species tag and sequence description.
             Defaults to "|".
         replacement_char (str): Char to replace disallowed chars and spaces.
         allowed_chars (str): Regex class of allowed characters.
+        wrap_column (int): Wrap sequences at the provided number. If 0, output
+            sequences sequentially (i.e., one sequence per line).
+        case_mode (CaseMode): Determines sequence casing. Must be one of the following:
+            "lower", "upper", or "preserve". Default: "preserve".
 
     Returns:
         GenesDirectoryFormat | ProteinsDirectoryFormat:
@@ -265,21 +279,52 @@ def _append_uscos(
     else:
         usco_dir = GenesDirectoryFormat()
 
+    max_width = None if wrap_column == 0 else wrap_column
+
     for source_fp in usco_paths:
         destination_fp = Path(str(usco_dir)) / f"{source_fp.stem}.fasta"
 
+        sequences = skbio.read(
+            str(source_fp),
+            format="fasta",
+            constructor=skbio.DNA if seq_type.is_nucleotide() else skbio.Protein,
+        )
+
         mode = "a" if destination_fp.exists() else "w"
-        with open(source_fp, "r") as src, open(destination_fp, mode) as dst:
-            for line in src:
-                if line.startswith(">"):
-                    line = _normalize_fasta_header(
-                        line,
-                        species_tag=species_tag,
-                        species_separator=species_separator,
-                        replacement_char=replacement_char,
-                        allowed_chars=allowed_chars,
-                    )
-                dst.write(line)
+
+        with open(destination_fp, mode) as out_f:
+            for seq in sequences:
+                full_header = seq.metadata["id"]
+                if seq.metadata["description"]:
+                    full_header += " " + seq.metadata["description"]
+
+                header = _normalize_fasta_header(
+                    full_header,
+                    species_tag=species_tag,
+                    species_separator=species_separator,
+                    replacement_char=replacement_char,
+                    allowed_chars=allowed_chars,
+                )
+
+                seq.metadata["id"] = header
+                seq.metadata["description"] = ""
+
+                if case_mode == CaseMode.LOWER:
+                    lowercase = np.ones(len(seq), dtype=bool)
+                elif case_mode == CaseMode.UPPER:
+                    lowercase = None
+                elif case_mode == CaseMode.PRESERVE:
+                    lowercase = np.array([c.islower() for c in str(seq)])
+                else:
+                    raise ValueError(f"Invalid case_mode: {case_mode}")
+
+                skbio.write(
+                    seq,
+                    format="fasta",
+                    into=out_f,
+                    max_width=max_width,
+                    lowercase=lowercase,
+                )
 
     return usco_dir
 
