@@ -15,26 +15,38 @@ from typing import List, Union
 
 import pandas as pd
 import q2templates
+from q2_types.feature_data_mag import MAGSequencesDirFmt
+from q2_types.genome_data import GenesDirectoryFormat, ProteinsDirectoryFormat
+from q2_types.per_sample_sequences import MultiMAGSequencesDirFmt
 
+from q2_annotate._utils import _process_common_input_params, run_command
+from q2_annotate.busco.extract_orthologs import (
+    DuplicateMode,
+    FragmentMode,
+    SequenceType,
+    _append_uscos,
+    _extract_uscos,
+    _get_busco_results_dir,
+)
 from q2_annotate.busco.plots_detailed import _draw_detailed_plots
 from q2_annotate.busco.plots_summary import (
+    _draw_completeness_vs_contamination,
     _draw_marker_summary_histograms,
     _draw_selectable_summary_histograms,
-    _draw_completeness_vs_contamination,
     _draw_selectable_unbinned_histograms,
 )
-
+from q2_annotate.busco.types import BuscoDatabaseDirFmt
 from q2_annotate.busco.utils import (
+    _calculate_summary_stats,
+    _cleanup_bootstrap,
+    _extract_json_data,
+    _get_feature_table,
     _parse_busco_params,
     _parse_df_columns,
     _partition_dataframe,
-    _calculate_summary_stats,
-    _get_feature_table,
-    _cleanup_bootstrap,
-    _validate_lineage_dataset_input,
-    _extract_json_data,
-    _validate_parameters,
     _process_busco_results,
+    _validate_lineage_dataset_input,
+    _validate_parameters,
     _filter_unbinned_for_partition,
     _add_unbinned_metrics,
 )
@@ -67,7 +79,7 @@ def _run_busco(input_dir: str, output_dir: str, sample_id: str, params: List[str
     run_command(cmd, cwd=os.path.dirname(output_dir))
 
 
-def _busco_helper(mags, common_args, additional_metrics):
+def _busco_helper(mags, kwargs, additional_metrics):
     results_all = []
     # Get samples directories from MAGs
     if isinstance(mags, MultiMAGSequencesDirFmt):
@@ -75,7 +87,14 @@ def _busco_helper(mags, common_args, additional_metrics):
     elif isinstance(mags, MAGSequencesDirFmt):
         sample_dir = {"feature_data": mags.feature_dict()}
 
+    # Filter out all kwargs that are None, False or 0.0
+    common_args = _process_common_input_params(
+        processing_func=_parse_busco_params, params=kwargs
+    )
+
     with tempfile.TemporaryDirectory() as tmp:
+        usco_nucl_dir, usco_prot_dir = GenesDirectoryFormat(), ProteinsDirectoryFormat()
+
         for sample_id, feature_dict in sample_dir.items():
 
             _run_busco(
@@ -86,9 +105,9 @@ def _busco_helper(mags, common_args, additional_metrics):
                 sample_id=sample_id,
                 params=common_args,
             )
-            # Extract and process results from JSON files for one sample
-            for mag_id, mag_fp in feature_dict.items():
 
+            for mag_id, mag_fp in feature_dict.items():
+                # Extract and process results from JSON files
                 json_path = glob.glob(
                     os.path.join(
                         str(tmp), sample_id, os.path.basename(mag_fp), "*.json"
@@ -104,7 +123,30 @@ def _busco_helper(mags, common_args, additional_metrics):
                 )
                 results_all.append(results)
 
-    return pd.DataFrame(results_all)
+                # Extract nucleotide and protein orthologs
+                busco_results_dir = _get_busco_results_dir(tmp, sample_id, mag_fp)
+                usco_fps_nucl, usco_fps_prot = (
+                    _extract_uscos(
+                        busco_results_dir=busco_results_dir,
+                        lineage_dataset=kwargs["lineage_dataset"],
+                        seq_type=seq_type,
+                        min_len=0,
+                        min_score=0,
+                        fragment_mode=FragmentMode.SKIP,
+                        duplicate_mode=DuplicateMode.SKIP,
+                    )
+                    for seq_type in (SequenceType.NUCLEOTIDE, SequenceType.PROTEIN)
+                )
+
+                usco_nucl_dir, usco_prot_dir = (
+                    _append_uscos(usco_dir, usco_fps, seq_type, species_tag=mag_id)
+                    for usco_dir, usco_fps, seq_type in [
+                        (usco_nucl_dir, usco_fps_nucl, SequenceType.NUCLEOTIDE),
+                        (usco_prot_dir, usco_fps_prot, SequenceType.PROTEIN),
+                    ]
+                )
+
+    return pd.DataFrame(results_all), usco_nucl_dir, usco_prot_dir
 
 
 def _evaluate_busco(
@@ -128,7 +170,7 @@ def _evaluate_busco(
     metaeuk_rerun_parameters: str = None,
     miniprot: bool = False,
     additional_metrics: bool = False,
-) -> pd.DataFrame:
+) -> (pd.DataFrame, GenesDirectoryFormat, ProteinsDirectoryFormat):  # type:ignore
     kwargs = {
         k: v
         for k, v in locals().items()
@@ -147,13 +189,8 @@ def _evaluate_busco(
             kwargs,
         )
 
-    # Filter out all kwargs that are None, False or 0.0
-    common_args = _process_common_input_params(
-        processing_func=_parse_busco_params, params=kwargs
-    )
-
     # Always call _busco_helper once
-    busco_results = _busco_helper(mags, common_args, additional_metrics)
+    busco_results = _busco_helper(mags, kwargs, additional_metrics)
 
     # If mags is MultiMAGSequencesDirFmt, add unbinned contigs info
     if isinstance(mags, MultiMAGSequencesDirFmt) and unbinned_contigs:
@@ -322,6 +359,7 @@ def evaluate_busco(
     collate_busco_results = ctx.get_action("annotate", "collate_busco_results")
     _visualize_busco = ctx.get_action("annotate", "_visualize_busco")
     _filter_contigs = ctx.get_action("assembly", "filter_contigs")
+    collate_busco_sequences = ctx.get_action("annotate", "collate_busco_sequences")
 
     if issubclass(mags.format, MultiMAGSequencesDirFmt):
         partition_action = "partition_sample_data_mags"
@@ -356,7 +394,19 @@ def evaluate_busco(
             (busco_result,) = _evaluate_busco(mag, db, None, **kwargs)
             results.append(busco_result)
 
+    all_nucl_seqs = []
+    all_prot_seqs = []
+
+    for mag in partitioned_mags.values():
+        busco_result, nucl_seqs, prot_seqs = _evaluate_busco(mag, **kwargs)
+        results.append(busco_result)
+        all_nucl_seqs.append(nucl_seqs)
+        all_prot_seqs.append(prot_seqs)
+
     (collated_results,) = collate_busco_results(results)
     (visualization,) = _visualize_busco(collated_results)
+    collated_nucl_dirs, collated_prot_dirs = collate_busco_sequences(
+        all_nucl_seqs, all_prot_seqs
+    )
 
-    return collated_results, visualization
+    return collated_results, visualization, collated_nucl_dirs, collated_prot_dirs

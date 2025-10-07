@@ -13,7 +13,7 @@ from q2_types.per_sample_sequences import MultiMAGSequencesDirFmt
 import skbio
 
 from q2_annotate._utils import _process_common_input_params
-from q2_annotate.busco.busco import _run_busco
+# from q2_annotate.busco.busco import _run_busco
 from q2_annotate.busco.types import BuscoDatabaseDirFmt
 from q2_annotate.busco.utils import (
     _parse_busco_params,
@@ -404,161 +404,161 @@ def _get_busco_results_dir(
     return Path(output_path) / output_folder_name / os.path.basename(mag_file_path)
 
 
-@overload
-def _extract_orthologs_busco(
-    *args, seq_type: SequenceType.NUCLEOTIDE, **kwargs
-) -> GenesDirectoryFormat: ...
+# @overload
+# def _extract_orthologs_busco(
+#     *args, seq_type: SequenceType.NUCLEOTIDE, **kwargs
+# ) -> GenesDirectoryFormat: ...
 
 
-@overload
-def _extract_orthologs_busco(
-    *args, seq_type: SequenceType.PROTEIN, **kwargs
-) -> ProteinsDirectoryFormat: ...
+# @overload
+# def _extract_orthologs_busco(
+#     *args, seq_type: SequenceType.PROTEIN, **kwargs
+# ) -> ProteinsDirectoryFormat: ...
 
 
-def _extract_orthologs_busco(
-    mags: Union[MultiMAGSequencesDirFmt, MAGSequencesDirFmt],
-    db: BuscoDatabaseDirFmt,
-    mode: str = "genome",
-    lineage_dataset: str = None,
-    augustus: bool = False,
-    augustus_parameters: str = None,
-    augustus_species: str = None,
-    auto_lineage: bool = False,
-    auto_lineage_euk: bool = False,
-    auto_lineage_prok: bool = False,
-    cpu: int = 1,
-    contig_break: int = 10,
-    evalue: float = 1e-03,
-    limit: int = 3,
-    long: bool = False,
-    metaeuk_parameters: str = None,
-    metaeuk_rerun_parameters: str = None,
-    miniprot: bool = False,
-    additional_metrics: bool = False,
-    num_partitions: int = None,
-) -> (GenesDirectoryFormat, ProteinsDirectoryFormat):  # type: ignore
-    kwargs = {
-        k: v
-        for k, v in locals().items()
-        if k not in ["mags", "db", "additional_metrics"]
-    }
-    kwargs["offline"] = True
-    kwargs["download_path"] = str(db)
+# def _extract_orthologs_busco(
+#     mags: Union[MultiMAGSequencesDirFmt, MAGSequencesDirFmt],
+#     db: BuscoDatabaseDirFmt,
+#     mode: str = "genome",
+#     lineage_dataset: str = None,
+#     augustus: bool = False,
+#     augustus_parameters: str = None,
+#     augustus_species: str = None,
+#     auto_lineage: bool = False,
+#     auto_lineage_euk: bool = False,
+#     auto_lineage_prok: bool = False,
+#     cpu: int = 1,
+#     contig_break: int = 10,
+#     evalue: float = 1e-03,
+#     limit: int = 3,
+#     long: bool = False,
+#     metaeuk_parameters: str = None,
+#     metaeuk_rerun_parameters: str = None,
+#     miniprot: bool = False,
+#     additional_metrics: bool = False,
+#     num_partitions: int = None,
+# ) -> (GenesDirectoryFormat, ProteinsDirectoryFormat):  # type: ignore
+#     kwargs = {
+#         k: v
+#         for k, v in locals().items()
+#         if k not in ["mags", "db", "additional_metrics"]
+#     }
+#     kwargs["offline"] = True
+#     kwargs["download_path"] = str(db)
 
-    if lineage_dataset is not None:
-        _validate_lineage_dataset_input(
-            lineage_dataset,
-            auto_lineage,
-            auto_lineage_euk,
-            auto_lineage_prok,
-            db,
-            kwargs,  # kwargs may be modified inside this function
-        )
+#     if lineage_dataset is not None:
+#         _validate_lineage_dataset_input(
+#             lineage_dataset,
+#             auto_lineage,
+#             auto_lineage_euk,
+#             auto_lineage_prok,
+#             db,
+#             kwargs,  # kwargs may be modified inside this function
+#         )
 
-    # Filter out all kwargs that are None, False or 0.0
-    common_args = _process_common_input_params(
-        processing_func=_parse_busco_params, params=kwargs
-    )
+#     # Filter out all kwargs that are None, False or 0.0
+#     common_args = _process_common_input_params(
+#         processing_func=_parse_busco_params, params=kwargs
+#     )
 
-    if isinstance(mags, MultiMAGSequencesDirFmt):
-        sample_dir = mags.sample_dict()
-    elif isinstance(mags, MAGSequencesDirFmt):
-        sample_dir = {"feature_data": mags.feature_dict()}
+#     if isinstance(mags, MultiMAGSequencesDirFmt):
+#         sample_dir = mags.sample_dict()
+#     elif isinstance(mags, MAGSequencesDirFmt):
+#         sample_dir = {"feature_data": mags.feature_dict()}
 
-    with tempfile.TemporaryDirectory() as tmp:
-        usco_nucl_dir, usco_prot_dir = GenesDirectoryFormat(), ProteinsDirectoryFormat()
-        for sample_id, feature_dict in sample_dir.items():
-            _run_busco(
-                input_dir=os.path.join(
-                    str(mags), "" if sample_id == "feature_data" else sample_id
-                ),
-                output_dir=str(tmp),
-                sample_id=sample_id,
-                params=common_args,
-            )
+#     with tempfile.TemporaryDirectory() as tmp:
+#         usco_nucl_dir, usco_prot_dir = GenesDirectoryFormat(), ProteinsDirectoryFormat()
+#         for sample_id, feature_dict in sample_dir.items():
+#             _run_busco(
+#                 input_dir=os.path.join(
+#                     str(mags), "" if sample_id == "feature_data" else sample_id
+#                 ),
+#                 output_dir=str(tmp),
+#                 sample_id=sample_id,
+#                 params=common_args,
+#             )
 
-            for mag_id, mag_fp in feature_dict.items():
-                busco_results_dir = _get_busco_results_dir(tmp, sample_id, mag_fp)
-                usco_fps_nucl, usco_fps_prot = (
-                    _extract_uscos(
-                        busco_results_dir=busco_results_dir,
-                        lineage_dataset=lineage_dataset,
-                        seq_type=seq_type,
-                        min_len=0,
-                        min_score=0,
-                        fragment_mode=FragmentMode.SKIP,
-                        duplicate_mode=DuplicateMode.SKIP,
-                    )
-                    for seq_type in (SequenceType.NUCLEOTIDE, SequenceType.PROTEIN)
-                )
+#             for mag_id, mag_fp in feature_dict.items():
+#                 busco_results_dir = _get_busco_results_dir(tmp, sample_id, mag_fp)
+#                 usco_fps_nucl, usco_fps_prot = (
+#                     _extract_uscos(
+#                         busco_results_dir=busco_results_dir,
+#                         lineage_dataset=lineage_dataset,
+#                         seq_type=seq_type,
+#                         min_len=0,
+#                         min_score=0,
+#                         fragment_mode=FragmentMode.SKIP,
+#                         duplicate_mode=DuplicateMode.SKIP,
+#                     )
+#                     for seq_type in (SequenceType.NUCLEOTIDE, SequenceType.PROTEIN)
+#                 )
 
-                usco_nucl_dir, usco_prot_dir = (
-                    _append_uscos(usco_dir, usco_fps, seq_type, species_tag=mag_id)
-                    for usco_dir, usco_fps, seq_type in [
-                        (usco_nucl_dir, usco_fps_nucl, SequenceType.NUCLEOTIDE),
-                        (usco_prot_dir, usco_fps_prot, SequenceType.PROTEIN),
-                    ]
-                )
+#                 usco_nucl_dir, usco_prot_dir = (
+#                     _append_uscos(usco_dir, usco_fps, seq_type, species_tag=mag_id)
+#                     for usco_dir, usco_fps, seq_type in [
+#                         (usco_nucl_dir, usco_fps_nucl, SequenceType.NUCLEOTIDE),
+#                         (usco_prot_dir, usco_fps_prot, SequenceType.PROTEIN),
+#                     ]
+#                 )
 
-    return usco_nucl_dir, usco_prot_dir
+#     return usco_nucl_dir, usco_prot_dir
 
 
-def extract_orthologs_busco(
-    ctx,
-    mags,
-    db,
-    mode="genome",
-    lineage_dataset=None,
-    augustus=False,
-    augustus_parameters=None,
-    augustus_species=None,
-    auto_lineage=False,
-    auto_lineage_euk=False,
-    auto_lineage_prok=False,
-    cpu=1,
-    contig_break=10,
-    evalue=1e-03,
-    limit=3,
-    long=False,
-    metaeuk_parameters=None,
-    metaeuk_rerun_parameters=None,
-    miniprot=False,
-    additional_metrics=True,
-    num_partitions=None,
-):
-    _validate_parameters(
-        lineage_dataset, auto_lineage, auto_lineage_euk, auto_lineage_prok
-    )
+# def extract_orthologs_busco(
+#     ctx,
+#     mags,
+#     db,
+#     mode="genome",
+#     lineage_dataset=None,
+#     augustus=False,
+#     augustus_parameters=None,
+#     augustus_species=None,
+#     auto_lineage=False,
+#     auto_lineage_euk=False,
+#     auto_lineage_prok=False,
+#     cpu=1,
+#     contig_break=10,
+#     evalue=1e-03,
+#     limit=3,
+#     long=False,
+#     metaeuk_parameters=None,
+#     metaeuk_rerun_parameters=None,
+#     miniprot=False,
+#     additional_metrics=True,
+#     num_partitions=None,
+# ):
+#     _validate_parameters(
+#         lineage_dataset, auto_lineage, auto_lineage_euk, auto_lineage_prok
+#     )
 
-    kwargs = {
-        k: v for k, v in locals().items() if k not in ["mags", "ctx", "num_partitions"]
-    }
+#     kwargs = {
+#         k: v for k, v in locals().items() if k not in ["mags", "ctx", "num_partitions"]
+#     }
 
-    _extract_orthologs_busco = ctx.get_action("annotate", "_extract_orthologs_busco")
-    collate_busco_sequences = ctx.get_action("annotate", "collate_busco_sequences")
+#     _extract_orthologs_busco = ctx.get_action("annotate", "_extract_orthologs_busco")
+#     collate_busco_sequences = ctx.get_action("annotate", "collate_busco_sequences")
 
-    if issubclass(mags.format, MultiMAGSequencesDirFmt):
-        partition_action = "partition_sample_data_mags"
-    else:
-        partition_action = "partition_feature_data_mags"
-    partition_mags = ctx.get_action("types", partition_action)
+#     if issubclass(mags.format, MultiMAGSequencesDirFmt):
+#         partition_action = "partition_sample_data_mags"
+#     else:
+#         partition_action = "partition_feature_data_mags"
+#     partition_mags = ctx.get_action("types", partition_action)
 
-    (partitioned_mags,) = partition_mags(mags, num_partitions)
+#     (partitioned_mags,) = partition_mags(mags, num_partitions)
 
-    results = list(
-        map(
-            lambda mag: _extract_orthologs_busco(mag, **kwargs),
-            partitioned_mags.values(),
-        )
-    )
+#     results = list(
+#         map(
+#             lambda mag: _extract_orthologs_busco(mag, **kwargs),
+#             partitioned_mags.values(),
+#         )
+#     )
 
-    nucl_dirs, prot_dirs = zip(*results)
-    nucl_dirs = list(nucl_dirs)
-    prot_dirs = list(prot_dirs)
+#     nucl_dirs, prot_dirs = zip(*results)
+#     nucl_dirs = list(nucl_dirs)
+#     prot_dirs = list(prot_dirs)
 
-    collated_nucl_dirs, collated_prot_dirs = collate_busco_sequences(
-        nucl_dirs, prot_dirs
-    )
+#     collated_nucl_dirs, collated_prot_dirs = collate_busco_sequences(
+#         nucl_dirs, prot_dirs
+#     )
 
-    return collated_nucl_dirs, collated_prot_dirs
+#     return collated_nucl_dirs, collated_prot_dirs

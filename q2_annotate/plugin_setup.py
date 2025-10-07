@@ -1136,6 +1136,30 @@ plugin.methods.register_function(
     description="Collates BUSCO results.",
 )
 
+plugin.methods.register_function(
+    function=q2_annotate.busco.collate_busco_sequences,
+    inputs={
+        "dna_sequences": List[OrthologDNASequences],
+        "protein_sequences": List[OrthologProteinSequences],
+    },
+    parameters={},
+    outputs=[
+        ("merged_dna_seqs", OrthologDNASequences),
+        ("merged_protein_seqs", OrthologProteinSequences),
+    ],
+    input_descriptions={
+        "dna_sequences": "A list of nucleotide USCO sequences per MAG.",
+        "protein_sequences": "A list of protein USCO sequences per MAG",
+    },
+    parameter_descriptions={},
+    output_descriptions={
+        "merged_dna_seqs": "A set of nucleotide USCO sequences.",
+        "merged_protein_seqs": "A set of protein USCO sequences.",
+    },
+    name="Collate multiple pairs of USCO directories into one.",
+    description="Collate multiple pairs of USCO directories into one.",
+)
+
 plugin.visualizers.register_function(
     function=q2_annotate.busco._visualize_busco,
     inputs={
@@ -1159,18 +1183,27 @@ plugin.methods.register_function(
         "db": ReferenceDB[BUSCO],
     },
     parameters=busco_params,
-    outputs={"results": BUSCOResults},
+    outputs=[
+        ("results", BUSCOResults),
+        ("orthologs_nucleotide", OrthologDNASequences),
+        ("orthologs_protein", OrthologProteinSequences),
+    ],
     input_descriptions={
         "mags": "MAGs to be analyzed.",
         "db": "BUSCO database.",
         "unbinned_contigs": "Contigs which were not assigned to any bin.",
     },
     parameter_descriptions=busco_param_descriptions,
-    output_descriptions={"results": "BUSCO result table."},
-    name="Evaluate quality of the generated MAGs using BUSCO.",
+    output_descriptions={
+        "results": "BUSCO result table.",
+        "orthologs_nucleotide": "A set of nucleotide USCO sequences in FASTA format.",
+        "orthologs_protein": "A set of protein USCO sequences in FASTA format.",
+    },
+    name="Assess the quality of the MAGs and extract single-copy orthologs using BUSCO.",
     description=(
-        "This method uses BUSCO to assess the quality of assembled MAGs "
-        "and generates a table summarizing the results."
+        "This method uses BUSCO to assess the quality of assembled MAGs."
+        "It generates a table summarizing the results together with the nucleotide and "
+        "protein sequences single-copy orthologs found."
     ),
     citations=[citations["manni_busco_2021"]],
 )
@@ -1183,7 +1216,12 @@ plugin.pipelines.register_function(
         "db": ReferenceDB[BUSCO],
     },
     parameters={**busco_params, **partition_params},
-    outputs={"results": BUSCOResults, "visualization": Visualization},
+    outputs={
+        "results": BUSCOResults,
+        "visualization": Visualization,
+        "orthologs_nucleotide": OrthologDNASequences,
+        "orthologs_protein": OrthologProteinSequences,
+    },
     input_descriptions={
         "mags": "MAGs to be analyzed.",
         "db": "BUSCO database.",
@@ -1193,71 +1231,55 @@ plugin.pipelines.register_function(
     output_descriptions={
         "results": "BUSCO result table.",
         "visualization": "Visualization of the BUSCO results.",
+        "orthologs_nucleotide": "A set of nucleotide USCO sequences in FASTA format.",
+        "orthologs_protein": "A set of protein USCO sequences in FASTA format.",
     },
-    name="Evaluate quality of the generated MAGs using BUSCO.",
+    name="Asses the quality of the MAGs and extract single-copy orthologs using BUSCO.",
     description=(
-        "This method uses BUSCO to assess the quality of assembled "
-        "MAGs and generates a table summarizing the results."
+        "This method uses BUSCO to assess the quality of assembled MAGs."
+        "It generates a table summarizing the results together with the nucleotide and "
+        "protein sequences single-copy orthologs found."
     ),
     citations=[citations["manni_busco_2021"]],
 )
 
-plugin.methods.register_function(
-    function=q2_annotate.busco.collate_busco_sequences,
-    inputs={
-        "dna_sequences": List[OrthologDNASequences],
-        "protein_sequences": List[OrthologProteinSequences],
-    },
-    parameters={},
-    outputs=[
-        ("merged_dna_seqs", OrthologDNASequences),
-        ("merged_protein_seqs", OrthologProteinSequences),
-    ],
-    output_descriptions={
-        "merged_dna_seqs": "A set of nucleotide USCO sequences.",
-        "merged_protein_seqs": "A set of protein USCO sequences.",
-    },
-    name="Collate multiple pairs of USCO directories into one.",
-    description="Collate multiple pairs of USCO directories into one.",
-)
+# plugin.methods.register_function(
+#     function=q2_annotate.busco._extract_orthologs_busco,
+#     inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
+#     parameters={**busco_params, **partition_params},
+#     outputs=[
+#         ("dna_ortholog_seqs", OrthologDNASequences),
+#         ("protein_ortholog_seqs", OrthologProteinSequences),
+#     ],
+#     output_descriptions={
+#         "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
+#         "protein_ortholog_seqs": "A set of protein USCO sequences.",
+#     },
+#     input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
+#     parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
+#     name="Extract orthologs from the provided MAGs using BUSCO.",
+#     description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
+#     citations=[citations["manni_busco_2021"]],
+# )
 
-plugin.methods.register_function(
-    function=q2_annotate.busco._extract_orthologs_busco,
-    inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
-    parameters={**busco_params, **partition_params},
-    outputs=[
-        ("dna_ortholog_seqs", OrthologDNASequences),
-        ("protein_ortholog_seqs", OrthologProteinSequences),
-    ],
-    output_descriptions={
-        "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
-        "protein_ortholog_seqs": "A set of protein USCO sequences.",
-    },
-    input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
-    parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
-    name="Extract orthologs from the provided MAGs using BUSCO.",
-    description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
-    citations=[citations["manni_busco_2021"]],
-)
-
-plugin.pipelines.register_function(
-    function=q2_annotate.busco.extract_orthologs_busco,
-    inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
-    parameters={**busco_params, **partition_params},
-    outputs={
-        "dna_ortholog_seqs": OrthologDNASequences,
-        "protein_ortholog_seqs": OrthologProteinSequences,
-    },
-    input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
-    parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
-    output_descriptions={
-        "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
-        "protein_ortholog_seqs": "A set of protein USCO sequences.",
-    },
-    name="Extract orthologs from the provided MAGs using BUSCO.",
-    description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
-    citations=[citations["manni_busco_2021"]],
-)
+# plugin.pipelines.register_function(
+#     function=q2_annotate.busco.extract_orthologs_busco,
+#     inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
+#     parameters={**busco_params, **partition_params},
+#     outputs={
+#         "dna_ortholog_seqs": OrthologDNASequences,
+#         "protein_ortholog_seqs": OrthologProteinSequences,
+#     },
+#     input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
+#     parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
+#     output_descriptions={
+#         "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
+#         "protein_ortholog_seqs": "A set of protein USCO sequences.",
+#     },
+#     name="Extract orthologs from the provided MAGs using BUSCO.",
+#     description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
+#     citations=[citations["manni_busco_2021"]],
+# )
 
 plugin.methods.register_function(
     function=q2_annotate.prodigal.predict_genes_prodigal,
