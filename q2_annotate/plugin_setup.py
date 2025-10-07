@@ -1243,44 +1243,6 @@ plugin.pipelines.register_function(
     citations=[citations["manni_busco_2021"]],
 )
 
-# plugin.methods.register_function(
-#     function=q2_annotate.busco._extract_orthologs_busco,
-#     inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
-#     parameters={**busco_params, **partition_params},
-#     outputs=[
-#         ("dna_ortholog_seqs", OrthologDNASequences),
-#         ("protein_ortholog_seqs", OrthologProteinSequences),
-#     ],
-#     output_descriptions={
-#         "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
-#         "protein_ortholog_seqs": "A set of protein USCO sequences.",
-#     },
-#     input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
-#     parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
-#     name="Extract orthologs from the provided MAGs using BUSCO.",
-#     description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
-#     citations=[citations["manni_busco_2021"]],
-# )
-
-# plugin.pipelines.register_function(
-#     function=q2_annotate.busco.extract_orthologs_busco,
-#     inputs={"mags": SampleData[MAGs] | FeatureData[MAG], "db": ReferenceDB[BUSCO]},
-#     parameters={**busco_params, **partition_params},
-#     outputs={
-#         "dna_ortholog_seqs": OrthologDNASequences,
-#         "protein_ortholog_seqs": OrthologProteinSequences,
-#     },
-#     input_descriptions={"mags": "MAGs to be analyzed.", "db": "BUSCO database."},
-#     parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
-#     output_descriptions={
-#         "dna_ortholog_seqs": "A set of nucleotide USCO sequences.",
-#         "protein_ortholog_seqs": "A set of protein USCO sequences.",
-#     },
-#     name="Extract orthologs from the provided MAGs using BUSCO.",
-#     description=("This method uses BUSCO to extract orthologs of assembled " "MAGs."),
-#     citations=[citations["manni_busco_2021"]],
-# )
-
 plugin.methods.register_function(
     function=q2_annotate.prodigal.predict_genes_prodigal,
     inputs={"seqs": FeatureData[MAG] | SampleData[MAGs] | SampleData[Contigs]},
