@@ -375,6 +375,8 @@ def evaluate_busco(
 
     (partitioned_mags,) = partition_mags(mags, num_partitions)
     results = []
+    all_nucl_seqs = []
+    all_prot_seqs = []
 
     if mags.type <= SampleData[MAGs]:
         # we need to match the unbinned contigs to the partitioned MAGs
@@ -385,23 +387,20 @@ def evaluate_busco(
                 )
             else:
                 unbinned_filtered = None
-            (busco_result,) = _evaluate_busco(
+            busco_result, nucl_seqs, prot_seqs = _evaluate_busco(
                 mag_partition, db, unbinned_filtered, **kwargs
             )
             results.append(busco_result)
+            all_nucl_seqs.append(nucl_seqs)
+            all_prot_seqs.append(prot_seqs)
     else:
         for mag in partitioned_mags.values():  # each mag is a subset of bins
-            (busco_result,) = _evaluate_busco(mag, db, None, **kwargs)
+            busco_result, nucl_seqs, prot_seqs = _evaluate_busco(
+                mag, db, None, **kwargs
+            )
             results.append(busco_result)
-
-    all_nucl_seqs = []
-    all_prot_seqs = []
-
-    for mag in partitioned_mags.values():
-        busco_result, nucl_seqs, prot_seqs = _evaluate_busco(mag, **kwargs)
-        results.append(busco_result)
-        all_nucl_seqs.append(nucl_seqs)
-        all_prot_seqs.append(prot_seqs)
+            all_nucl_seqs.append(nucl_seqs)
+            all_prot_seqs.append(prot_seqs)
 
     (collated_results,) = collate_busco_results(results)
     (visualization,) = _visualize_busco(collated_results)
