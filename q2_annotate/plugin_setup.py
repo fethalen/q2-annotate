@@ -1199,7 +1199,7 @@ plugin.methods.register_function(
         "orthologs_nucleotide": "A set of nucleotide USCO sequences in FASTA format.",
         "orthologs_protein": "A set of protein USCO sequences in FASTA format.",
     },
-    name="Assess the quality of the MAGs and extract single-copy orthologs using BUSCO.",
+    name="Assess the quality of the MAGs and extract orthologs using BUSCO.",
     description=(
         "This method uses BUSCO to assess the quality of assembled MAGs."
         "It generates a table summarizing the results together with the nucleotide and "
