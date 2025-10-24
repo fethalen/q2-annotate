@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import tempfile
+import warnings
 from copy import deepcopy
 from shutil import copytree
 from typing import List, Union
@@ -17,10 +18,16 @@ import pandas as pd
 import q2templates
 from q2_types.feature_data_mag import MAGSequencesDirFmt
 from q2_types.genome_data import GenesDirectoryFormat, ProteinsDirectoryFormat
-from q2_types.per_sample_sequences import MultiMAGSequencesDirFmt
+from q2_types.per_sample_sequences import (
+    ContigSequencesDirFmt,
+    MAGs,
+    MultiMAGSequencesDirFmt,
+)
+from q2_types.sample_data import SampleData
 
 from q2_annotate._utils import _process_common_input_params, run_command
 from q2_annotate.busco.extract_orthologs import (
+    CaseMode,
     DuplicateMode,
     FragmentMode,
     SequenceType,
@@ -37,9 +44,11 @@ from q2_annotate.busco.plots_summary import (
 )
 from q2_annotate.busco.types import BuscoDatabaseDirFmt
 from q2_annotate.busco.utils import (
+    _add_unbinned_metrics,
     _calculate_summary_stats,
     _cleanup_bootstrap,
     _extract_json_data,
+    _filter_unbinned_for_partition,
     _get_feature_table,
     _parse_busco_params,
     _parse_df_columns,
@@ -47,20 +56,7 @@ from q2_annotate.busco.utils import (
     _process_busco_results,
     _validate_lineage_dataset_input,
     _validate_parameters,
-    _filter_unbinned_for_partition,
-    _add_unbinned_metrics,
 )
-
-from q2_annotate._utils import _process_common_input_params, run_command
-from q2_annotate.busco.types import BuscoDatabaseDirFmt
-from q2_types.sample_data import SampleData
-from q2_types.feature_data_mag import MAGSequencesDirFmt
-from q2_types.per_sample_sequences import (
-    MultiMAGSequencesDirFmt,
-    ContigSequencesDirFmt,
-    MAGs,
-)
-import warnings
 
 
 def _run_busco(input_dir: str, output_dir: str, sample_id: str, params: List[str]):
@@ -79,7 +75,14 @@ def _run_busco(input_dir: str, output_dir: str, sample_id: str, params: List[str
     run_command(cmd, cwd=os.path.dirname(output_dir))
 
 
-def _busco_helper(mags, kwargs, additional_metrics):
+def _busco_helper(
+    mags,
+    kwargs,
+    additional_metrics,
+    duplicate_mode,
+    fragment_mode,
+    case_mode,
+):
     results_all = []
     # Get samples directories from MAGs
     if isinstance(mags, MultiMAGSequencesDirFmt):
@@ -132,14 +135,20 @@ def _busco_helper(mags, kwargs, additional_metrics):
                         seq_type=seq_type,
                         min_len=0,
                         min_score=0,
-                        fragment_mode=FragmentMode.SKIP,
-                        duplicate_mode=DuplicateMode.SKIP,
+                        fragment_mode=fragment_mode,
+                        duplicate_mode=duplicate_mode,
                     )
                     for seq_type in (SequenceType.NUCLEOTIDE, SequenceType.PROTEIN)
                 )
 
                 usco_nucl_dir, usco_prot_dir = (
-                    _append_uscos(usco_dir, usco_fps, seq_type, species_tag=mag_id)
+                    _append_uscos(
+                        usco_dir,
+                        usco_fps,
+                        seq_type,
+                        species_tag=mag_id,
+                        case_mode=case_mode,
+                    )
                     for usco_dir, usco_fps, seq_type in [
                         (usco_nucl_dir, usco_fps_nucl, SequenceType.NUCLEOTIDE),
                         (usco_prot_dir, usco_fps_prot, SequenceType.PROTEIN),
@@ -170,11 +179,23 @@ def _evaluate_busco(
     metaeuk_rerun_parameters: str = None,
     miniprot: bool = False,
     additional_metrics: bool = False,
+    duplicate_mode: DuplicateMode = DuplicateMode.SKIP,
+    fragment_mode: FragmentMode = FragmentMode.SKIP,
+    case_mode: CaseMode = CaseMode.UPPER,
 ) -> (pd.DataFrame, GenesDirectoryFormat, ProteinsDirectoryFormat):  # type:ignore
     kwargs = {
         k: v
         for k, v in locals().items()
-        if k not in ["mags", "unbinned_contigs", "db", "additional_metrics"]
+        if k
+        not in [
+            "mags",
+            "unbinned_contigs",
+            "db",
+            "additional_metrics",
+            "duplicate_mode",
+            "fragment_mode",
+            "case_mode",
+        ]
     }
     kwargs["offline"] = True
     kwargs["download_path"] = str(db)
@@ -190,7 +211,9 @@ def _evaluate_busco(
         )
 
     # Always call _busco_helper once
-    busco_results = _busco_helper(mags, kwargs, additional_metrics)
+    busco_results = _busco_helper(
+        mags, kwargs, additional_metrics, duplicate_mode, fragment_mode, case_mode
+    )
 
     # If mags is MultiMAGSequencesDirFmt, add unbinned contigs info
     if isinstance(mags, MultiMAGSequencesDirFmt) and unbinned_contigs:
@@ -345,6 +368,9 @@ def evaluate_busco(
     miniprot=False,
     additional_metrics=True,
     num_partitions=None,
+    duplicate_mode=DuplicateMode.SKIP,
+    fragment_mode=FragmentMode.SKIP,
+    case_mode=CaseMode.UPPER,
 ):
     _validate_parameters(
         lineage_dataset, auto_lineage, auto_lineage_euk, auto_lineage_prok
@@ -353,7 +379,17 @@ def evaluate_busco(
     kwargs = {
         k: v
         for k, v in locals().items()
-        if k not in ["mags", "unbinned_contigs", "ctx", "db", "num_partitions"]
+        if k
+        not in [
+            "mags",
+            "unbinned_contigs",
+            "ctx",
+            "db",
+            "num_partitions",
+            "duplicate_mode",
+            "fragment_mode",
+            "case_mode",
+        ]
     }
     _evaluate_busco = ctx.get_action("annotate", "_evaluate_busco")
     collate_busco_results = ctx.get_action("annotate", "collate_busco_results")

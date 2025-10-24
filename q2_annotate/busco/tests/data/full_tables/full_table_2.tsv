@@ -1,0 +1,5 @@
+# BUSCO version is: 5.2.2
+# The lineage dataset is: eukaryota_odb10 (Creation date: 2020-09-10, number of genomes: 70, number of BUSCOs: 255)
+# Busco id	Status	Sequence	Gene Start	Gene End	Strand	Score	Length
+44125at2759	Complete	5012345	720	18564	+	1653.2	1258
+153212at2759	Missing

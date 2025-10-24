@@ -57,14 +57,16 @@ def _merge_usco_dirs(
         merged_dir = GenesDirectoryFormat()
 
     for usco_dir in usco_dirs:
-        for fp in Path(str(usco_dir)).glob("*.fasta"):
-            dest = Path(str(merged_dir)) / fp.name
-            if dest.exists():
-                with open(fp) as src, open(dest, "a") as dst:
-                    for line in src:
-                        dst.write(line)
-            else:
-                shutil.copy(fp, dest)
+        for pattern in ("*.fasta", "*.fa", "*.faa", "*.fna", "*.ffn"):
+            for fp in Path(usco_dir.path).glob(pattern):
+
+                dest = Path(str(merged_dir)) / fp.name
+                if dest.exists():
+                    with open(fp) as src, open(dest, "a") as dst:
+                        for line in src:
+                            dst.write(line)
+                else:
+                    shutil.copy(fp, dest)
 
     return merged_dir
 

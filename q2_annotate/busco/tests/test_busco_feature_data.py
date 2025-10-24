@@ -14,7 +14,14 @@ import qiime2
 from q2_types.feature_data_mag import MAGSequencesDirFmt
 from qiime2.plugin.testing import TestPluginBase
 
-from q2_annotate.busco.busco import _visualize_busco, evaluate_busco, _busco_helper
+from q2_annotate.busco.busco import (
+    _visualize_busco,
+    evaluate_busco,
+    _busco_helper,
+    DuplicateMode,
+    FragmentMode,
+    CaseMode,
+)
 
 
 class TestBUSCOFeatureData(TestPluginBase):
@@ -27,11 +34,14 @@ class TestBUSCOFeatureData(TestPluginBase):
             mode="r",
         )
 
+    @patch("q2_annotate.busco.busco._extract_uscos")
     @patch("q2_annotate.busco.busco._extract_json_data")
     @patch("q2_annotate.busco.busco._process_busco_results")
     @patch("q2_annotate.busco.busco._run_busco")
     @patch("q2_annotate.busco.busco.glob.glob")
-    def test_busco_helper(self, mock_glob, mock_run, mock_process, mock_extract):
+    def test_busco_helper(
+        self, mock_glob, mock_run, mock_process, mock_extract, mock_extract_uscos
+    ):
         with open(
             self.get_data_path("busco_results_json/busco_results_feature_data.json"),
             "r",
@@ -40,7 +50,14 @@ class TestBUSCOFeatureData(TestPluginBase):
 
         mock_process.side_effect = busco_list
 
-        obs = _busco_helper(self.mags, ["--lineage_dataset", "bacteria_odb10"], True)
+        obs_results, obs_usco_nucl_dir, obs_usco_prot_dir = _busco_helper(
+            self.mags,
+            {"lineage_dataset": "bacteria_odb10"},
+            True,
+            DuplicateMode.SKIP,
+            FragmentMode.SKIP,
+            CaseMode.UPPER,
+        )
 
         exp = pd.read_csv(
             self.get_data_path(
@@ -50,7 +67,7 @@ class TestBUSCOFeatureData(TestPluginBase):
             keep_default_na=False,
         )
         exp["sample_id"] = exp["sample_id"].astype(object)
-        pd.testing.assert_frame_equal(obs, exp)
+        pd.testing.assert_frame_equal(obs_results, exp)
 
         mock_run.assert_called_once_with(
             input_dir=ANY,
@@ -176,11 +193,18 @@ class TestBUSCOFeatureData(TestPluginBase):
 
         mock_action = MagicMock(
             side_effect=[
-                lambda x, y, z, **kwargs: (0,),  # evaluate_busco
-                lambda x: ("collated_result",),  # collate
-                lambda x: ("visualization",),  # visualize
-                fake_filter_contigs,  # filter unbinned
-                lambda x, y: (fake_partition,),  # partition
+                # _evaluate_busco
+                lambda x, y, z, **kwargs: ("busco_result", "nucl_dir", "prot_dir"),
+                # collate_busco_results
+                lambda x: ("collated_results",),
+                # _visualize_busco
+                lambda x: ("visualization",),
+                # _filter_contigs
+                lambda *a, **kw: ("filtered_unbinned",),
+                # collate_busco_sequences
+                lambda x, y: ("collated_nucl_dirs", "collated_prot_dirs"),
+                # partition_mags
+                lambda x, y: (fake_partition,),
             ]
         )
         mock_ctx = MagicMock(get_action=mock_action)
@@ -191,7 +215,12 @@ class TestBUSCOFeatureData(TestPluginBase):
             db=busco_db,
             num_partitions=2,
         )
-        exp = ("collated_result", "visualization")
+        exp = (
+            "collated_results",
+            "visualization",
+            "collated_nucl_dirs",
+            "collated_prot_dirs",
+        )
         self.assertTupleEqual(obs, exp)
 
     @patch("q2_annotate.busco.busco._validate_parameters")
@@ -215,13 +244,21 @@ class TestBUSCOFeatureData(TestPluginBase):
 
         mock_action = MagicMock(
             side_effect=[
-                lambda x, y, z, **kwargs: (0,),  # evaluate_busco
-                lambda x: ("collated_result",),  # collate
-                lambda x: ("visualization",),  # visualize
-                fake_filter_contigs,  # filter unbinned
-                lambda x, y: (fake_partition,),  # partition
+                # _evaluate_busco
+                lambda x, y, z, **kwargs: ("busco_result", "nucl_dir", "prot_dir"),
+                # collate_busco_results
+                lambda x: ("collated_results",),
+                # _visualize_busco
+                lambda x: ("visualization",),
+                # _filter_contigs
+                lambda *a, **kw: ("filtered_unbinned",),
+                # collate_busco_sequences
+                lambda x, y: ("collated_nucl_dirs", "collated_prot_dirs"),
+                # partition_mags
+                lambda x, y: (fake_partition,),
             ]
         )
+
         mock_ctx = MagicMock(get_action=mock_action)
 
         with pytest.warns(match="unbinned contigs will be ignored"):
@@ -232,5 +269,10 @@ class TestBUSCOFeatureData(TestPluginBase):
                 db=busco_db,
                 num_partitions=2,
             )
-        exp = ("collated_result", "visualization")
+        exp = (
+            "collated_results",
+            "visualization",
+            "collated_nucl_dirs",
+            "collated_prot_dirs",
+        )
         self.assertTupleEqual(obs, exp)

@@ -1065,6 +1065,9 @@ busco_params = {
     "metaeuk_rerun_parameters": Str,
     "miniprot": Bool,
     "additional_metrics": Bool,
+    "duplicate_mode": Str,
+    "fragment_mode": Str,
+    "case_mode": Str,
 }
 busco_param_descriptions = {
     "mode": (
@@ -1124,8 +1127,19 @@ busco_param_descriptions = {
         "report. Check here for documentation: https://github.com/"
         "metashot/busco?tab=readme-ov-file#documetation"
     ),
+    "duplicate_mode": (
+        "How to handle duplicated USCOs. Options: 'longest' (keep longest sequence), "
+        "'best_score' (keep best-scoring sequence), or 'skip' (discard all duplicates)."
+    ),
+    "fragment_mode": (
+        "How to handle fragmented USCOs. Options: 'longest' (keep longest sequence), "
+        "'best_score' (keep best-scoring sequence), or 'skip' (discard all fragments)."
+    ),
+    "case_mode": (
+        "Casing of output sequences. Options: 'lower' (lowercase) or 'upper' "
+        "(uppercase)."
+    ),
 }
-
 
 plugin.methods.register_function(
     function=q2_annotate.busco.collate_busco_results,

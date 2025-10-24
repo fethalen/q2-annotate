@@ -67,9 +67,17 @@ def _parse_full_table_file(tsv_path: Path) -> pd.DataFrame:
     return df
 
 
-def _filter_by_mode(df: pd.DataFrame, status: str, mode: Enum) -> pd.DataFrame:
+def _filter_by_mode(df: pd.DataFrame, mode: Enum) -> pd.DataFrame:
     """Helper to filter a subset of BUSCO rows by mode."""
+    if isinstance(mode, FragmentMode):
+        status = "Fragmented"
+    elif isinstance(mode, DuplicateMode):
+        status = "Duplicated"
+    else:
+        raise ValueError(f"Unexpected mode type: {mode}")
+
     subset = df[df["status"] == status]
+
     if mode == FragmentMode.SKIP or mode == DuplicateMode.SKIP:
         return df.iloc[0:0]
     if mode in {
@@ -85,6 +93,7 @@ def _filter_by_mode(df: pd.DataFrame, status: str, mode: Enum) -> pd.DataFrame:
         )
         if not subset.empty:
             subset = subset.loc[subset.groupby("busco_id")[key_col].idxmax()]
+    subset = subset.reset_index(drop=True)
     return subset
 
 
@@ -109,18 +118,15 @@ def _filter_full_table_df(
     Returns:
         pandas.DataFrame: The filtered BUSCO results as a Pandas DataFrame.
     """
-    # Step 1: Filter by length and score
-    df = full_table_df[
-        (full_table_df["length"] > min_len) & (full_table_df["score"] > min_score)
-    ]
+    # Ensures that missing entries are not filtered out at this step
+    mask = (full_table_df["length"] > min_len) & (full_table_df["score"] > min_score)
+    df = full_table_df[mask | (full_table_df["status"] == "Missing")]
 
-    # Step 2: Apply modes
-    frag_df = _filter_by_mode(df, "Fragmented", fragment_mode)
-    dup_df = _filter_by_mode(df, "Duplicated", duplicate_mode)
+    frag_df = _filter_by_mode(df, fragment_mode)
+    dup_df = _filter_by_mode(df, duplicate_mode)
     categories = {"Complete"} if drop_missing else {"Complete", "Missing"}
     complete_missing_df = df[df["status"].isin(categories)]
 
-    # Step 3: Combine and return
     return pd.concat([complete_missing_df, frag_df, dup_df]).reset_index(drop=True)
 
 
@@ -207,6 +213,10 @@ def _append_uscos(
     seq_type: SequenceType.NUCLEOTIDE,
     species_tag: str | None = None,
     species_separator: str = "|",
+    replacement_char: str = "_",
+    allowed_chars: str = r"A-Za-z0-9_.\-",
+    wrap_column: int = 0,
+    case_mode: CaseMode = CaseMode.PRESERVE,
 ) -> GenesDirectoryFormat: ...
 
 
@@ -217,6 +227,10 @@ def _append_uscos(
     seq_type: SequenceType.PROTEIN,
     species_tag: str | None = None,
     species_separator: str = "|",
+    replacement_char: str = "_",
+    allowed_chars: str = r"A-Za-z0-9_.\-",
+    wrap_column: int = 0,
+    case_mode: CaseMode = CaseMode.PRESERVE,
 ) -> ProteinsDirectoryFormat: ...
 
 
@@ -253,7 +267,8 @@ def _append_uscos(
         species_tag (str): Optional species identifier to prefix FASTA headers.
         species_separator (str): Separator between species tag and sequence description.
             Defaults to "|".
-        replacement_char (str): Char to replace disallowed chars and spaces.
+        replacement_char (str): Char to replace disallowed chars and spaces. Default to
+            "_".
         allowed_chars (str): Regex class of allowed characters.
         wrap_column (int): Wrap sequences at the provided number. If 0, output
             sequences sequentially (i.e., one sequence per line).
@@ -265,11 +280,6 @@ def _append_uscos(
             A directory format wrapping the provided USCO sequences, typed according
             to `seq_type`.
     """
-    if seq_type.is_protein():
-        usco_dir = ProteinsDirectoryFormat()
-    else:
-        usco_dir = GenesDirectoryFormat()
-
     max_width = None if wrap_column == 0 else wrap_column
 
     for source_fp in usco_paths:
@@ -363,8 +373,8 @@ def _extract_uscos(
             min_len=min_len,
             min_score=min_score,
             drop_missing=True,
-            fragment_mode=FragmentMode.SKIP,
-            duplicate_mode=DuplicateMode.SKIP,
+            fragment_mode=fragment_mode,
+            duplicate_mode=duplicate_mode,
         )
         .pipe(
             _get_corresponding_files,
