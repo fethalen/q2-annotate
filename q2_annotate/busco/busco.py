@@ -197,7 +197,7 @@ def _evaluate_busco(
             "case_mode",
         ]
     }
-    kwargs["offline"] = True
+    # kwargs["offline"] = True
     kwargs["download_path"] = str(db)
 
     if lineage_dataset is not None:

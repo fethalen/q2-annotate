@@ -332,7 +332,7 @@ def _append_uscos(
 
 def _extract_uscos(
     busco_results_dir: Path,
-    lineage_dataset: str,
+    lineage_dataset: str | None = None,
     seq_type: SequenceType = SequenceType.NUCLEOTIDE,
     min_len: int = 0,
     min_score: int = 0,
@@ -362,7 +362,11 @@ def _extract_uscos(
             f"{busco_results_dir}"
         )
 
-    analysis_run_dir = busco_results_dir / f"run_{lineage_dataset}"
+    if lineage_dataset:
+        analysis_run_dir = busco_results_dir / f"run_{lineage_dataset}"
+    else:
+        analysis_run_dir = busco_results_dir.glob("run_*")[0]
+
     busco_sequences_dir = analysis_run_dir / "busco_sequences"
     full_table_fp = analysis_run_dir / "full_table.tsv"
 
