@@ -50,6 +50,7 @@ from q2_types.per_sample_sequences import (
 )
 from q2_types.sample_data import SampleData
 from q2_types.feature_map import FeatureMap, MAGtoContigs
+# TODO: Should use .plugin over .core.type
 from qiime2.core.type import (
     Bool,
     Range,
@@ -1052,6 +1053,7 @@ busco_params = {
     "metaeuk_rerun_parameters": Str,
     "miniprot": Bool,
     "additional_metrics": Bool,
+    "online": Bool,
 }
 busco_param_descriptions = {
     "mode": (
@@ -1110,6 +1112,10 @@ busco_param_descriptions = {
         "Adds completeness and contamination values to the BUSCO "
         "report. Check here for documentation: https://github.com/"
         "metashot/busco?tab=readme-ov-file#documetation"
+    ),
+    "online": (
+        "Attempt to download required datasets not present in the provided "
+        "database.",
     ),
 }
 
@@ -1171,6 +1177,37 @@ plugin.pipelines.register_function(
     },
     parameters={**busco_params, **partition_params},
     outputs={"results": BUSCOResults, "visualization": Visualization},
+    input_descriptions={
+        "mags": "MAGs to be analyzed.",
+        "db": "BUSCO database.",
+        "unbinned_contigs": "Contigs which were not assigned to any bin.",
+    },
+    parameter_descriptions={**busco_param_descriptions, **partition_param_descriptions},
+    output_descriptions={
+        "results": "BUSCO result table.",
+        "visualization": "Visualization of the BUSCO results.",
+    },
+    name="Evaluate quality of the generated MAGs using BUSCO.",
+    description=(
+        "This method uses BUSCO to assess the quality of assembled "
+        "MAGs and generates a table summarizing the results."
+    ),
+    citations=[citations["manni_busco_2021"]],
+)
+
+plugin.pipelines.register_function(
+    function=q2_annotate.busco.evaluate_busco_online,
+    inputs={
+        "mags": SampleData[MAGs] | FeatureData[MAG],
+        "unbinned_contigs": SampleData[Contigs],
+        "db": ReferenceDB[BUSCO],
+    },
+    parameters={**busco_params, **partition_params},
+    outputs={
+        "results": BUSCOResults,
+        "visualization": Visualization,
+        "db": ReferenceDB[BUSCO],
+    },
     input_descriptions={
         "mags": "MAGs to be analyzed.",
         "db": "BUSCO database.",

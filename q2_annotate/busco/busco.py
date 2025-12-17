@@ -51,6 +51,33 @@ from q2_types.per_sample_sequences import (
 import warnings
 
 
+def _rename_extension(directory: str, old_ext: str, new_ext: str):
+    """
+    Renames all files in the given directory from old_ext to new_ext.
+
+    Args:
+        directory (str): Path to the directory.
+        old_ext (str): File extension to replace.
+        new_ext (str): New extension.
+
+    Notes:
+        - Extensions are matched case-insensitively.
+        - `old_ext` and `new_ext` should include the dot: ".fasta", ".fa"
+        - Only files in the specified directory are renamed (no recursion).
+    """
+    old_ext = old_ext.lower()
+    for filename in os.listdir(directory):
+        lower_filename = filename.lower()
+        if lower_filename.endswith(old_ext):
+            base = filename[: -len(old_ext)]
+            new_filename = base + new_ext
+            old_path = os.path.join(directory, filename)
+            new_path = os.path.join(directory, new_filename)
+
+            os.rename(old_path, new_path)
+            print(f"Renamed: {old_path} → {new_path}")
+
+
 def _run_busco(input_dir: str, output_dir: str, sample_id: str, params: List[str]):
     """Runs BUSCO on one (sample) directory
 
@@ -62,9 +89,15 @@ def _run_busco(input_dir: str, output_dir: str, sample_id: str, params: List[str
     """
     base_cmd = ["busco", *params]
 
+    # Replace files with the extension .fasta with .fa
+    _rename_extension(input_dir, ".fasta", ".fa")
+
     cmd = deepcopy(base_cmd)
     cmd.extend(["--in", input_dir, "--out_path", output_dir, "-o", sample_id])
     run_command(cmd, cwd=os.path.dirname(output_dir))
+
+    # Reset the filetype extension of the FASTA files in the input directory.
+    _rename_extension(input_dir, ".fa", ".fasta")
 
 
 def _busco_helper(mags, common_args, additional_metrics):
@@ -128,13 +161,15 @@ def _evaluate_busco(
     metaeuk_rerun_parameters: str = None,
     miniprot: bool = False,
     additional_metrics: bool = False,
+    online: bool = False,
 ) -> pd.DataFrame:
     kwargs = {
         k: v
         for k, v in locals().items()
-        if k not in ["mags", "unbinned_contigs", "db", "additional_metrics"]
+        if k not in ["mags", "unbinned_contigs", "db", "additional_metrics", "online"]
     }
-    kwargs["offline"] = True
+    if not online:
+        kwargs["offline"] = True
     kwargs["download_path"] = str(db)
 
     if lineage_dataset is not None:
@@ -308,6 +343,7 @@ def evaluate_busco(
     miniprot=False,
     additional_metrics=True,
     num_partitions=None,
+    online=False,
 ):
     _validate_parameters(
         lineage_dataset, auto_lineage, auto_lineage_euk, auto_lineage_prok
@@ -360,3 +396,32 @@ def evaluate_busco(
     (visualization,) = _visualize_busco(collated_results)
 
     return collated_results, visualization
+
+
+def evaluate_busco_online(
+    ctx,
+    mags,
+    db,
+    unbinned_contigs=None,
+    mode="genome",
+    lineage_dataset=None,
+    augustus=False,
+    augustus_parameters=None,
+    augustus_species=None,
+    auto_lineage=False,
+    auto_lineage_euk=False,
+    auto_lineage_prok=False,
+    cpu=1,
+    contig_break=10,
+    evalue=1e-03,
+    limit=3,
+    long=False,
+    metaeuk_parameters=None,
+    metaeuk_rerun_parameters=None,
+    miniprot=False,
+    additional_metrics=True,
+    num_partitions=None,
+    online=True,
+):
+    args = locals()
+    return evaluate_busco(**args)
