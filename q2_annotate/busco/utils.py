@@ -7,7 +7,6 @@
 # ----------------------------------------------------------------------------
 import json
 import os
-import warnings
 from pathlib import Path
 from typing import List, Callable
 
