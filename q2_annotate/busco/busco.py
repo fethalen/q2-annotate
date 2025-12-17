@@ -116,9 +116,6 @@ def _evaluate_busco(
     augustus: bool = False,
     augustus_parameters: str = None,
     augustus_species: str = None,
-    auto_lineage: bool = False,
-    auto_lineage_euk: bool = False,
-    auto_lineage_prok: bool = False,
     cpu: int = 1,
     contig_break: int = 10,
     evalue: float = 1e-03,
@@ -140,11 +137,7 @@ def _evaluate_busco(
     if lineage_dataset is not None:
         _validate_lineage_dataset_input(
             lineage_dataset,
-            auto_lineage,
-            auto_lineage_euk,
-            auto_lineage_prok,
             db,
-            kwargs,
         )
 
     # Filter out all kwargs that are None, False or 0.0
@@ -295,9 +288,6 @@ def evaluate_busco(
     augustus=False,
     augustus_parameters=None,
     augustus_species=None,
-    auto_lineage=False,
-    auto_lineage_euk=False,
-    auto_lineage_prok=False,
     cpu=1,
     contig_break=10,
     evalue=1e-03,
@@ -310,7 +300,7 @@ def evaluate_busco(
     num_partitions=None,
 ):
     _validate_parameters(
-        lineage_dataset, auto_lineage, auto_lineage_euk, auto_lineage_prok
+        lineage_dataset,
     )
 
     kwargs = {
