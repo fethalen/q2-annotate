@@ -33,7 +33,6 @@ from q2_annotate.busco.utils import (
     _cleanup_bootstrap,
     _validate_lineage_dataset_input,
     _extract_json_data,
-    _validate_parameters,
     _process_busco_results,
     _filter_unbinned_for_partition,
     _add_unbinned_metrics,
@@ -299,9 +298,8 @@ def evaluate_busco(
     additional_metrics=True,
     num_partitions=None,
 ):
-    _validate_parameters(
-        lineage_dataset,
-    )
+    if not lineage_dataset:
+        raise ValueError("'lineage-dataset' is required as a parameter")
 
     kwargs = {
         k: v

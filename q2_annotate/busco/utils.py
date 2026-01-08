@@ -279,13 +279,6 @@ def _calculate_contamination_completeness(missing, total, duplicated, complete):
     return completeness, contamination
 
 
-def _validate_parameters(
-    lineage_dataset,
-):
-    if not lineage_dataset:
-        raise ValueError("'lineage-dataset' is required as a parameter")
-
-
 def _process_busco_results(results, sample_id, mag_id, file_name, additional_metrics):
     """
     Process BUSCO results by optionally calculating contamination and completeness,

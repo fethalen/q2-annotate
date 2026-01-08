@@ -29,7 +29,6 @@ from q2_annotate.busco.utils import (
     _calculate_summary_stats,
     _validate_lineage_dataset_input,
     _extract_json_data,
-    _validate_parameters,
     _calculate_contamination_completeness,
     _process_busco_results,
     _calculate_unbinned_percentage,
@@ -507,10 +506,6 @@ class TestBUSCOUtils(TestPluginBase):
         }
 
         self.assertEqual(output, expected)
-
-    def test_validate_parameters_lineage_all_false(self):
-        with self.assertRaisesRegex(ValueError, "'lineage-dataset' is required"):
-            _validate_parameters(None)
 
     def test_count_binned_contigs(self):
         sample_path = Path(self.get_data_path("mags")) / "sample1"
