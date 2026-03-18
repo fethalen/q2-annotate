@@ -2198,6 +2198,67 @@ plugin.pipelines.register_function(
     ),
 )
 
+plugin.methods.register_function(
+    function=q2_annotate.das_tool.bin_refinement_das_tool,
+    inputs={
+        "bins": List[SampleData[MAGs]],
+        "contigs": SampleData[MAGs],
+        "proteins": GenomeData[Proteins],
+    },
+    parameters={
+        "search_engine": Str % Choices("diamond", "blastp", "usearch"),
+        "score_threashold": Float % Range(0.0, 1.0),
+        "duplicate_penalty": Float % Range(0.0, 3.0),
+        "megabin_penalty": Float % Range(0.0, 3.0),
+        "max_iter_post_threshold": Int % Range(0, None),
+        "num_threads": Int % Range(0, None),
+        "seed": Int % Range(0, None),
+        "debug": Bool,
+        "verbose": Bool,
+    },
+    outputs={
+        "refined_bins": SampleData[MAGs],
+    },
+    input_descriptions={
+        "bins": "A list of bins produced by different metagenomic binning tools.",
+        "contigs": (
+            "Contig sequences used for metagenomic binning. These sequences must "
+            "correspond to the contigs that were used to generate the bins."
+        ),
+        "proteins": (
+            "Predicted protein sequences derived from the input contigs using "
+            "Prodigal."
+        ),
+    },
+    parameter_descriptions={
+        "search_engine": "Engine used for single copy gene identification.",
+        "score_threashold": (
+            "Score threshold until selection algorithm will keep selecting bins."
+        ),
+        "duplicate_penalty": (
+            "Penalty for duplicate single copy genes per bin (weight b)."
+        ),
+        "megabin_penalty": "Penalty for megabins (weight c).",
+        "max_iter_post_threshold": (
+            "Maximum number of iterations after reaching score threshold."
+        ),
+        "num_threads": "Number of threads to use (0: use all cores).",
+        "seed": "For exact reproducibility. (0: use random seed)",
+        "debug": "Debug output.",
+        "verbose": "Verbose output.",
+    },
+    output_descriptions={
+        "refined_bins": "The binned contigs created by DAS Tool.",
+    },
+    name="Refine bins produced by 2+ binning methods using DAS Tool.",
+    description=(
+        "This method uses DAS Tool to integrate multiple binning prediction to "
+        "produce an optimized, non-redundant set of bins."),
+    citations=[
+        citations["sieber2018recovery"],
+    ],
+)
+
 
 plugin.register_semantic_types(BUSCOResults, BUSCO)
 plugin.register_formats(
